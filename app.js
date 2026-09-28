@@ -1,0 +1,22 @@
+const M={...CORE,questions:[...Q1,...Q2],adaptive:ADAPTIVE}; const T=M.traits,C=M.characters,Q=M.questions,A=M.adaptive,G=M.generic_adaptive,B=M.calibration_bias;
+const names=Object.keys(C), nT=T.length;
+const means=T.map((_,j)=>names.reduce((s,n)=>s+C[n][1][j],0)/names.length);
+const sds=T.map((_,j)=>Math.sqrt(names.reduce((s,n)=>s+(C[n][1][j]-means[j])**2,0)/names.length)||1);
+const CZ=names.map(n=>C[n][1].map((x,j)=>(x-means[j])/sds[j]));
+const CZN=CZ.map(v=>{const m=Math.hypot(...v)||1;return v.map(x=>x/m)});
+let idx=0,e=Array(nT).fill(0),extra=[],extraMode=null,extraKey=null;
+function centeredOptions(q){const rows=q.a.map(o=>T.map(t=>o.w[t]||0)); const mean=T.map((_,j)=>rows.reduce((s,r)=>s+r[j],0)/rows.length);return rows.map(r=>{let v=r.map((x,j)=>x-mean[j]);const m=Math.hypot(...v)||1;return v.map(x=>x/m)})}
+function addVector(v,mult=1){v.forEach((x,j)=>e[j]+=mult*x)}
+function unit(v){const m=Math.hypot(...v)||1;return v.map(x=>x/m)}
+function dot(a,b){return a.reduce((s,x,j)=>s+x*b[j],0)}
+function scores(){const u=unit(e);return names.map((n,k)=>[n,dot(u,CZN[k])+(B[n]||0)]).sort((a,b)=>b[1]-a[1])}
+function keyFor(a,b){return A[a+'|'+b]?a+'|'+b:(A[b+'|'+a]?b+'|'+a:null)}
+function prepareAdaptive(){const s=scores(),gap=s[0][1]-s[1][1]; if(gap>=.09) return false;const key=keyFor(s[0][0],s[1][0]);if(key){extra=A[key];extraMode='manual';extraKey=key;return true}const ia=names.indexOf(s[0][0]),ib=names.indexOf(s[1][0]);const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true}
+function start(){app.innerHTML=`<div class="card"><div class="small">THE GENIUS CHARACTER TEST · MVP v1.1</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">24개의 상황 선택으로 플레이 스타일을 분석합니다. 상위 두 캐릭터가 비슷하면 당신에게 필요한 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary" onclick="showQ()">테스트 시작</button></div>`}
+function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
+function showQ(){let q=currentQ();if(!q){if(idx===Q.length&&prepareAdaptive()){showQ();return}return result()} const total=Q.length+extra.length;const pct=Math.min(100,(idx+1)/Math.max(24,total)*100);app.innerHTML=`<div class="meta small"><span>${idx<Q.length?'기본 분석':'정밀 판별'}</span><span>${idx+1}/${total}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="card"><div class="q">${q.q}</div>${q.a.map((o,k)=>`<button onclick="pick(${k})">${o.t}</button>`).join('')}</div>`}
+function pick(k){let q=currentQ(),v=centeredOptions(q)[k];addVector(v,idx<Q.length?1:2);idx++;showQ()}
+function matchDisplay(raw){return Math.max(55,Math.min(97,Math.round(50+55*raw)))}
+function confidenceLabel(gap,used){if(gap>=.18)return '높음';if(gap>=.10)return '중상';if(used&&gap>=.06)return '중간';return '탐색적'}
+function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;app.innerHTML=`<div class="card"><div class="small">당신의 더 지니어스 캐릭터</div><div class="big">${top[0]}</div><div class="muted">${C[top[0]][0]}</div><div class="score">${matchDisplay(top[1])}<span class="small"> / 100</span></div><p>${C[top[0]][2]}</p><div class="small">판정 신뢰도 <span class="confidence">${confidenceLabel(gap,used)}</span>${used?' · 적응형 판별 2문항 적용':''}</div><div class="grid" style="margin-top:14px">${dominant.map(([t,v])=>`<div class="pill"><div class="small">${t}</div><b>${v>=0?'높은 편':'낮은 편'}</b></div>`).join('')}</div></div><div class="card"><h2>가까운 캐릭터</h2>${s.slice(0,4).map((x,j)=>`<div class="rank"><span>${j+1}. ${x[0]} <span class="small">${C[x[0]][0]}</span></span><b>${matchDisplay(x[1])}</b></div>`).join('')}</div><div class="card"><h2>가장 다른 캐릭터</h2><div class="big">${last[0]}</div><div class="muted">${C[last[0]][0]}</div><p>${C[last[0]][2]}</p></div><div class="card"><div class="small">MVP 안내</div><p class="muted">비공식 팬 테스트입니다. 캐릭터 수치는 방송 속 행동 패턴을 서비스용으로 모델링한 값이며 tvN 또는 출연자의 공식 평가가 아닙니다.</p><button class="primary" onclick="location.reload()">다시 하기</button></div>`}
+start();
