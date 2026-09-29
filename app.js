@@ -4,7 +4,7 @@ const means=T.map((_,j)=>names.reduce((s,n)=>s+C[n][1][j],0)/names.length);
 const sds=T.map((_,j)=>Math.sqrt(names.reduce((s,n)=>s+(C[n][1][j]-means[j])**2,0)/names.length)||1);
 const CZ=names.map(n=>C[n][1].map((x,j)=>(x-means[j])/sds[j]));
 const CZN=CZ.map(v=>{const m=Math.hypot(...v)||1;return v.map(x=>x/m)});
-let idx=0,e=Array(nT).fill(0),extra=[],extraMode=null,extraKey=null;
+let idx=0,e=Array(nT).fill(0),extra=[],extraMode=null,extraKey=null,baseAnswers=[],adaptiveAnswers=[],TEST_STARTED_AT=null,RATING_SENT=false;
 const PLAYER_IMG={
   '장동민':'assets/players/jangdongmin.webp',
   '홍진호':'assets/players/hongjinho.webp',
@@ -27,10 +27,16 @@ function dot(a,b){return a.reduce((s,x,j)=>s+x*b[j],0)}
 function scores(){const u=unit(e);return names.map((n,k)=>[n,dot(u,CZN[k])+(B[n]||0)]).sort((a,b)=>b[1]-a[1])}
 function keyFor(a,b){return A[a+'|'+b]?a+'|'+b:(A[b+'|'+a]?b+'|'+a:null)}
 function prepareAdaptive(){const s=scores(),gap=s[0][1]-s[1][1]; if(gap>=.09) return false;const key=keyFor(s[0][0],s[1][0]);if(key){extra=A[key];extraMode='manual';extraKey=key;return true}const ia=names.indexOf(s[0][0]),ib=names.indexOf(s[1][0]);const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true}
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.0</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="showQ()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div></div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.1</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
+function beginTest(){if(!TEST_STARTED_AT)TEST_STARTED_AT=new Date().toISOString();showQ()}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function showQ(){let q=currentQ();if(!q){if(idx===Q.length&&prepareAdaptive()){showQ();return}return result()} const total=Q.length+extra.length;const pct=Math.min(100,(idx+1)/Math.max(Q.length,total)*100);app.innerHTML=`<div class="meta small"><span>${idx<Q.length?'기본 분석':'정밀 판별'}</span><span>${idx+1}/${total}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="card"><div class="q">${q.q}</div>${q.a.map((o,k)=>`<button onclick="pick(${k})">${o.t}</button>`).join('')}</div>`}
-function pick(k){let q=currentQ(),v=centeredOptions(q)[k];addVector(v,idx<Q.length?1:2);idx++;showQ()}
+function pick(k){
+  let q=currentQ(),v=centeredOptions(q)[k];
+  if(idx<Q.length) baseAnswers.push(k);
+  else adaptiveAnswers.push({mode:extraMode,key:Array.isArray(extraKey)?extraKey.join(','):String(extraKey||''),question_index:idx-Q.length,answer:k});
+  addVector(v,idx<Q.length?1:2);idx++;showQ()
+}
 function matchDisplay(raw){return Math.max(55,Math.min(97,Math.round(50+55*raw)))}
 let CURRENT_SHARE=null;
 function canonicalUrl(){return location.origin+location.pathname}
@@ -54,11 +60,12 @@ async function copyResultLink(){
   try{
     await navigator.clipboard.writeText(payload);
     setShareStatus('결과와 링크를 복사했습니다.');
+    analyticsEvent('share_copy',{method:'clipboard'});
   }catch(err){
     const ta=document.createElement('textarea');
     ta.value=payload;ta.style.position='fixed';ta.style.opacity='0';
     document.body.appendChild(ta);ta.select();
-    try{document.execCommand('copy');setShareStatus('결과와 링크를 복사했습니다.')}
+    try{document.execCommand('copy');setShareStatus('결과와 링크를 복사했습니다.');analyticsEvent('share_copy',{method:'legacy_clipboard'})}
     catch(e){setShareStatus('복사하지 못했습니다. 링크를 직접 복사해 주세요.')}
     ta.remove();
   }
@@ -67,10 +74,23 @@ async function shareCurrentResult(){
   if(!CURRENT_SHARE)return;
   const data={title:`내 더 지니어스 결과: ${CURRENT_SHARE.name}`,text:shareText(),url:CURRENT_SHARE.url};
   if(navigator.share){
-    try{await navigator.share(data);setShareStatus('공유를 완료했습니다.');return}
+    try{await navigator.share(data);setShareStatus('공유를 완료했습니다.');analyticsEvent('share_native',{method:'web_share'});return}
     catch(err){if(err&&err.name==='AbortError')return}
   }
   await copyResultLink();
+}
+function submitSelfRating(rating){
+  if(RATING_SENT)return;
+  const n=Number(rating);
+  if(n<1||n>5)return;
+  RATING_SENT=true;
+  analyticsEvent('self_rating',{rating:n});
+  document.querySelectorAll('.rating-btn').forEach((b,i)=>{
+    b.disabled=true;
+    if(i+1===n)b.classList.add('selected');
+  });
+  const el=document.getElementById('rating-status');
+  if(el)el.textContent='응답을 저장했습니다.';
 }
 function confidenceLabel(gap,used){if(gap>=.18)return '결과가 뚜렷한 편';if(gap>=.10)return '비교적 뚜렷한 편';if(used&&gap>=.06)return '비슷한 후보가 있는 편';return '여러 유형이 섞인 편'}
 const TRAIT_TEXT={
@@ -118,7 +138,31 @@ function allyReason(baseName,candName){
     .sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>ALLY_LABEL[x[0]]);
   return `플레이 스타일 모델상 ${ranked[0]}과 ${ranked[1]}에서 역할을 나누기 좋은 조합입니다.`;
 }
-function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;const ally=bestAlly(top[0],[similar[0],last[0]]);setShareResult(top[0],C[top[0]][0],matchDisplay(top[1]));app.innerHTML=`
+function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;const ally=bestAlly(top[0],[similar[0],last[0]]);setShareResult(top[0],C[top[0]][0],matchDisplay(top[1]));
+  const completedAt=new Date().toISOString(),startedAt=TEST_STARTED_AT||completedAt,params=new URLSearchParams(location.search);
+  analyticsSaveRun({
+    id:ANALYTICS_RUN_ID,
+    schema_version:1,
+    test_version:'v2.1',
+    started_at:startedAt,
+    completed_at:completedAt,
+    duration_ms:Math.max(0,Date.now()-new Date(startedAt).getTime()),
+    base_answers:baseAnswers,
+    adaptive_answers:adaptiveAnswers,
+    adaptive_used:used,
+    adaptive_key:Array.isArray(extraKey)?extraKey.join(','):(extraKey?String(extraKey):null),
+    top1:top[0],top1_score:matchDisplay(top[1]),
+    top2:similar[0],top2_score:matchDisplay(similar[1]),
+    score_gap:Number(gap.toFixed(5)),
+    similar_player:similar[0],
+    ally_player:ally,
+    opposite_player:last[0],
+    dominant_traits:dominant.map(([t,v])=>({trait:t,direction:v>=0?'high':'low',value:Number(v.toFixed(4))})),
+    utm_source:params.get('utm_source'),
+    utm_medium:params.get('utm_medium'),
+    utm_campaign:params.get('utm_campaign')
+  });
+  app.innerHTML=`
 <div class="card">
   <div class="result-top">
     ${playerPhoto(top[0],'player-photo-lg')}
@@ -166,6 +210,15 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
     <p class="ally-reason">${allyReason(top[0],ally)}</p>
     <p class="muted small">단순히 닮은 정도가 아니라 동맹 안정성, 압박 대응, 역할 보완과 스타일 충돌 가능성을 따로 계산한 결과입니다.</p>
   </div>
+</div>
+<div class="card rating-card">
+  <h2>이 결과가 나와 얼마나 비슷한가요?</h2>
+  <p class="muted small">결과 모델을 개선하는 익명 통계에만 사용합니다.</p>
+  <div class="rating-row" aria-label="결과 만족도">
+    ${[1,2,3,4,5].map(n=>`<button class="rating-btn" onclick="submitSelfRating(${n})" aria-label="${n}점">${n}</button>`).join('')}
+  </div>
+  <div class="rating-scale small"><span>전혀 아님</span><span>매우 비슷함</span></div>
+  <div id="rating-status" class="small rating-status" aria-live="polite"></div>
 </div>
 <div class="card">
   <div class="small">나와 플레이 방식이 가장 다른 사람</div>
