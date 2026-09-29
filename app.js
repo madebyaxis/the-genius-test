@@ -26,16 +26,78 @@ function unit(v){const m=Math.hypot(...v)||1;return v.map(x=>x/m)}
 function dot(a,b){return a.reduce((s,x,j)=>s+x*b[j],0)}
 function scores(){const u=unit(e);return names.map((n,k)=>[n,dot(u,CZN[k])+(B[n]||0)]).sort((a,b)=>b[1]-a[1])}
 function keyFor(a,b){return A[a+'|'+b]?a+'|'+b:(A[b+'|'+a]?b+'|'+a:null)}
-function prepareAdaptive(){const s=scores(),gap=s[0][1]-s[1][1]; if(gap>=.09) return false;const key=keyFor(s[0][0],s[1][0]);if(key){extra=A[key];extraMode='manual';extraKey=key;return true}const ia=names.indexOf(s[0][0]),ib=names.indexOf(s[1][0]);const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true}
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.1</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
+function clearAdaptive(){extra=[];extraMode=null;extraKey=null;adaptiveAnswers=[]}
+function rebuildEvidence(){
+  e=Array(nT).fill(0);
+  baseAnswers.forEach((answer,i)=>{
+    if(Number.isInteger(answer)&&Q[i]) addVector(centeredOptions(Q[i])[answer],1);
+  });
+  adaptiveAnswers.forEach((entry,i)=>{
+    const answer=typeof entry==='number'?entry:entry?.answer;
+    if(Number.isInteger(answer)&&extra[i]) addVector(centeredOptions(extra[i])[answer],2);
+  });
+}
+function prepareAdaptive(){
+  rebuildEvidence();
+  const s=scores(),gap=s[0][1]-s[1][1];
+  if(gap>=.09)return false;
+  const key=keyFor(s[0][0],s[1][0]);
+  if(key){extra=A[key];extraMode='manual';extraKey=key;return true}
+  const ia=names.indexOf(s[0][0]),ib=names.indexOf(s[1][0]);
+  const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);
+  extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true
+}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.2</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
 function beginTest(){if(!TEST_STARTED_AT)TEST_STARTED_AT=new Date().toISOString();showQ()}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
-function showQ(){let q=currentQ();if(!q){if(idx===Q.length&&prepareAdaptive()){showQ();return}return result()} const total=Q.length+extra.length;const pct=Math.min(100,(idx+1)/Math.max(Q.length,total)*100);app.innerHTML=`<div class="meta small"><span>${idx<Q.length?'기본 분석':'정밀 판별'}</span><span>${idx+1}/${total}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="card"><div class="q">${q.q}</div>${q.a.map((o,k)=>`<button onclick="pick(${k})">${o.t}</button>`).join('')}</div>`}
+function currentSavedAnswer(){
+  if(idx<Q.length)return Number.isInteger(baseAnswers[idx])?baseAnswers[idx]:null;
+  const entry=adaptiveAnswers[idx-Q.length];
+  const answer=typeof entry==='number'?entry:entry?.answer;
+  return Number.isInteger(answer)?answer:null;
+}
+function goBack(){
+  if(idx<=0)return;
+  idx--;
+  if(idx<Q.length&&extra.length){
+    clearAdaptive();
+    rebuildEvidence();
+  }
+  showQ();
+}
+function showQ(){
+  let q=currentQ();
+  if(!q){
+    if(idx===Q.length&&prepareAdaptive()){showQ();return}
+    return result()
+  }
+  const total=Q.length+extra.length;
+  const pct=Math.min(100,(idx+1)/Math.max(Q.length,total)*100);
+  const saved=currentSavedAnswer();
+  const back=idx>0?`<button class="back-btn" onclick="goBack()">← 이전 질문</button>`:'';
+  const editNote=saved!==null?'<div class="small edit-note">이전에 고른 답입니다. 다른 답을 누르면 여기부터 다시 계산합니다.</div>':'';
+  app.innerHTML=`<div class="meta small"><span>${idx<Q.length?'기본 분석':'정밀 판별'}</span><span>${idx+1}/${total}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="card question-card-live"><div class="q">${q.q}</div>${q.a.map((o,k)=>`<button class="answer-option ${saved===k?'selected-answer':''}" aria-pressed="${saved===k?'true':'false'}" onclick="pick(${k})">${o.t}${saved===k?'<span class="selected-mark">선택됨</span>':''}</button>`).join('')}${editNote}<div class="question-nav">${back}</div></div>`
+}
 function pick(k){
-  let q=currentQ(),v=centeredOptions(q)[k];
-  if(idx<Q.length) baseAnswers.push(k);
-  else adaptiveAnswers.push({mode:extraMode,key:Array.isArray(extraKey)?extraKey.join(','):String(extraKey||''),question_index:idx-Q.length,answer:k});
-  addVector(v,idx<Q.length?1:2);idx++;showQ()
+  const q=currentQ();
+  if(!q)return;
+  if(idx<Q.length){
+    baseAnswers=baseAnswers.slice(0,idx);
+    baseAnswers[idx]=k;
+    if(extra.length)clearAdaptive();
+  }else{
+    const adaptiveIndex=idx-Q.length;
+    adaptiveAnswers=adaptiveAnswers.slice(0,adaptiveIndex);
+    adaptiveAnswers[adaptiveIndex]={
+      mode:extraMode,
+      key:Array.isArray(extraKey)?extraKey.join(','):String(extraKey||''),
+      question_index:adaptiveIndex,
+      answer:k
+    };
+  }
+  rebuildEvidence();
+  idx++;
+  showQ()
 }
 function matchDisplay(raw){return Math.max(55,Math.min(97,Math.round(50+55*raw)))}
 let CURRENT_SHARE=null;
@@ -143,7 +205,7 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   analyticsSaveRun({
     id:ANALYTICS_RUN_ID,
     schema_version:1,
-    test_version:'v2.1',
+    test_version:'v2.2',
     started_at:startedAt,
     completed_at:completedAt,
     duration_ms:Math.max(0,Date.now()-new Date(startedAt).getTime()),
