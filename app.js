@@ -27,7 +27,7 @@ function dot(a,b){return a.reduce((s,x,j)=>s+x*b[j],0)}
 function scores(){const u=unit(e);return names.map((n,k)=>[n,dot(u,CZN[k])+(B[n]||0)]).sort((a,b)=>b[1]-a[1])}
 function keyFor(a,b){return A[a+'|'+b]?a+'|'+b:(A[b+'|'+a]?b+'|'+a:null)}
 function prepareAdaptive(){const s=scores(),gap=s[0][1]-s[1][1]; if(gap>=.09) return false;const key=keyFor(s[0][0],s[1][0]);if(key){extra=A[key];extraMode='manual';extraKey=key;return true}const ia=names.indexOf(s[0][0]),ib=names.indexOf(s[1][0]);const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true}
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v1.9</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="showQ()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div></div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.0</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="showQ()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div></div></div>`}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function showQ(){let q=currentQ();if(!q){if(idx===Q.length&&prepareAdaptive()){showQ();return}return result()} const total=Q.length+extra.length;const pct=Math.min(100,(idx+1)/Math.max(Q.length,total)*100);app.innerHTML=`<div class="meta small"><span>${idx<Q.length?'기본 분석':'정밀 판별'}</span><span>${idx+1}/${total}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="card"><div class="q">${q.q}</div>${q.a.map((o,k)=>`<button onclick="pick(${k})">${o.t}</button>`).join('')}</div>`}
 function pick(k){let q=currentQ(),v=centeredOptions(q)[k];addVector(v,idx<Q.length?1:2);idx++;showQ()}
@@ -88,7 +88,37 @@ const TRAIT_TEXT={
   '압박안정':['위기 대응','위기일수록 차분하게 정리하는 편','위기일수록 빠르게 결단하는 편']
 };
 function traitCard(t,v){const x=TRAIT_TEXT[t]||[t,t+'이 강한 편',t+'이 낮은 편'];return `<div class="pill"><div class="small">${x[0]}</div><b>${v>=0?x[1]:x[2]}</b></div>`}
-function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;setShareResult(top[0],C[top[0]][0],matchDisplay(top[1]));app.innerHTML=`
+const ALLY_LABEL={
+  '구조통찰':'판 구조 분석','정밀성':'정확한 계산','창의성':'새로운 해법',
+  '사회게임':'사람 사이 조율','거래성향':'협상과 거래','유연성':'변수 대응',
+  '리더십':'방향을 잡는 역할','동맹안정':'안정적인 동맹 유지',
+  '위험선호':'승부 타이밍','대립성':'상대 견제','독립성':'독자 실행',
+  '압박안정':'위기 상황 대응'
+};
+function avg(xs){return xs.reduce((s,x)=>s+x,0)/Math.max(1,xs.length)}
+function allyScore(baseName,candName){
+  const A=C[baseName][1].map(x=>x/100),D=C[candName][1].map(x=>x/100);
+  const ix=t=>T.indexOf(t);
+  const cohesion=['사회게임','동맹안정','위험선호','대립성','압박안정'];
+  const complement=['구조통찰','정밀성','창의성','사회게임','거래성향','유연성','리더십'];
+  const close=1-avg(cohesion.map(t=>Math.abs(A[ix(t)]-D[ix(t)])));
+  const reliable=avg(['동맹안정','압박안정'].map(t=>D[ix(t)]));
+  const fill=Math.min(1,avg(complement.map(t=>Math.max(0,D[ix(t)]-A[ix(t)])*(1-A[ix(t)])))*4);
+  const friction=avg(['리더십','대립성','독립성'].map(t=>A[ix(t)]*D[ix(t)]));
+  return .38*close+.32*reliable+.24*fill-.06*friction;
+}
+function bestAlly(baseName,exclude=[]){
+  return names.filter(n=>n!==baseName&&!exclude.includes(n))
+    .map(n=>[n,allyScore(baseName,n)]).sort((a,b)=>b[1]-a[1])[0][0];
+}
+function allyReason(baseName,candName){
+  const A=C[baseName][1],D=C[candName][1];
+  const pool=['구조통찰','정밀성','창의성','사회게임','거래성향','유연성','리더십','동맹안정','압박안정'];
+  const ranked=pool.map(t=>[t,(D[T.indexOf(t)]-A[T.indexOf(t)])*.7+D[T.indexOf(t)]*.3])
+    .sort((a,b)=>b[1]-a[1]).slice(0,2).map(x=>ALLY_LABEL[x[0]]);
+  return `플레이 스타일 모델상 ${ranked[0]}과 ${ranked[1]}에서 역할을 나누기 좋은 조합입니다.`;
+}
+function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;const ally=bestAlly(top[0],[similar[0],last[0]]);setShareResult(top[0],C[top[0]][0],matchDisplay(top[1]));app.innerHTML=`
 <div class="card">
   <div class="result-top">
     ${playerPhoto(top[0],'player-photo-lg')}
@@ -111,10 +141,31 @@ function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][
     <div id="share-status" class="share-status small" aria-live="polite"></div>
   </div>
 </div>
-<div class="card">
-  <h2>나와 비슷한 플레이어 TOP 4</h2>
-  <p class="muted small">점수가 높을수록 이번 답변에서 나타난 플레이 방식이 비슷합니다.</p>
-  ${s.slice(0,4).map((x,j)=>`<div class="rank rank-player">${playerPhoto(x[0],'player-photo-sm')}<span class="rank-copy"><b>${j+1}. ${x[0]}</b><br><span class="small">${C[x[0]][0]}</span></span><b class="rank-score">${matchDisplay(x[1])}점</b></div>`).join('')}
+<div class="result-pair-grid">
+  <div class="card mini-result-card">
+    <div class="small">나와 비슷한 또 다른 플레이어</div>
+    <div class="mini-player">
+      ${playerPhoto(similar[0],'player-photo-md')}
+      <div>
+        <div class="mini-name">${similar[0]}</div>
+        <div class="result-type mini-type">${C[similar[0]][0]}</div>
+        <div class="mini-score">유사도 ${matchDisplay(similar[1])}점</div>
+      </div>
+    </div>
+    <p class="muted small">1위 다음으로 이번 답변의 의사결정 방식이 가까운 플레이어입니다.</p>
+  </div>
+  <div class="card mini-result-card ally-card">
+    <div class="small">나와 팀으로 잘 맞을 플레이어</div>
+    <div class="mini-player">
+      ${playerPhoto(ally,'player-photo-md')}
+      <div>
+        <div class="mini-name">${ally}</div>
+        <div class="result-type mini-type">${C[ally][0]}</div>
+      </div>
+    </div>
+    <p class="ally-reason">${allyReason(top[0],ally)}</p>
+    <p class="muted small">단순히 닮은 정도가 아니라 동맹 안정성, 압박 대응, 역할 보완과 스타일 충돌 가능성을 따로 계산한 결과입니다.</p>
+  </div>
 </div>
 <div class="card">
   <div class="small">나와 플레이 방식이 가장 다른 사람</div>
