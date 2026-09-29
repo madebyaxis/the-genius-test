@@ -94,3 +94,20 @@
   .share-sheet{border-radius:17px}
 }
 .instagram-browser-note{margin-top:10px;padding:9px 11px;border:1px solid #5a4730;border-radius:9px;background:rgba(38,31,22,.7);color:#d9c4a0;line-height:1.45}
+.share-panel{grid-template-columns:1.1fr .9fr .9fr}
+.story-direct-btn{border-color:#6b5535;background:#241f18;color:#ead6b2}
+.share-copy-direct{background:#1d2025}
+.story-preview-overlay{position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.78);display:flex;align-items:center;justify-content:center;padding:16px}
+.story-preview-modal{width:min(94vw,520px);max-height:94vh;overflow:auto;background:#15181d;border:1px solid #5d4d34;border-radius:18px;padding:15px;box-shadow:0 28px 90px rgba(0,0,0,.66)}
+.story-preview-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}
+.story-preview-head b{font-size:18px}
+.story-preview-frame{width:min(100%,360px);margin:0 auto;border-radius:15px;overflow:hidden;border:1px solid #3b3f46;background:#0d0f12;box-shadow:0 14px 40px rgba(0,0,0,.35)}
+.story-preview-frame img{display:block;width:100%;height:auto}
+.story-preview-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:14px}
+.story-preview-actions button{margin:0;text-align:center}
+.story-help{line-height:1.55;margin:12px 2px 2px;color:#aeb4bd}
+@media(max-width:620px){
+  .share-panel{grid-template-columns:1fr}
+  .story-preview-overlay{padding:10px;align-items:flex-end}
+  .story-preview-modal{width:100%;max-height:95vh;border-radius:18px}
+}
