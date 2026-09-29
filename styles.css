@@ -25,3 +25,12 @@
   .player-photo-sm{width:48px;height:48px}
   .opposite-row{align-items:flex-start}
 }
+.share-panel{display:grid;grid-template-columns:1.25fr .75fr;gap:10px;margin-top:22px;padding-top:18px;border-top:1px solid #2a2f36}
+.share-panel button{margin:0}
+.share-primary{background:#f1e4cf;color:#17120d;border-color:#c7a36b}
+.share-secondary{text-align:center;background:#22262d;color:#e7e9ed}
+.share-status{grid-column:1/-1;min-height:18px;text-align:center;color:#d7bb8b;margin-top:2px}
+@media(max-width:520px){
+  .share-panel{grid-template-columns:1fr}
+  .share-status{grid-column:1}
+}
