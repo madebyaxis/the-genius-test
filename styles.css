@@ -46,3 +46,12 @@
 @media(max-width:620px){
   .result-pair-grid{grid-template-columns:1fr}
 }
+.privacy-note{margin-top:8px;color:#9ca3ad}
+.rating-card h2{font-size:21px}
+.rating-row{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:16px 0 8px}
+.rating-btn{text-align:center;margin:0;padding:12px 0;font-weight:800}
+.rating-btn.selected{background:#f1e4cf;color:#17120d;border-color:#c7a36b}
+.rating-btn:disabled{cursor:default;opacity:.72}
+.rating-btn.selected:disabled{opacity:1}
+.rating-scale{display:flex;justify-content:space-between}
+.rating-status{min-height:18px;margin-top:10px;color:#d7bb8b}
