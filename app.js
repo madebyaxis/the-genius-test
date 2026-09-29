@@ -47,7 +47,7 @@ function prepareAdaptive(){
   const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);
   extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true
 }
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.3</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.4</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
 function beginTest(){if(!TEST_STARTED_AT)TEST_STARTED_AT=new Date().toISOString();showQ()}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function currentSavedAnswer(){
@@ -107,39 +107,97 @@ function setShareResult(name,type,score){
 }
 function shareText(){
   if(!CURRENT_SHARE)return '';
-  return `나는 더 지니어스에서 ${CURRENT_SHARE.name} 타입!\n${CURRENT_SHARE.type} · 플레이 스타일 유사도 ${CURRENT_SHARE.score}점\n\n너는 누구일까?`;
+  return `나는 더 지니어스에서 ${CURRENT_SHARE.name} 타입!\n${CURRENT_SHARE.type} · 플레이 스타일 유사도 ${CURRENT_SHARE.score}점\n\n너는 누구일까?\n${CURRENT_SHARE.url}`;
 }
-function setShareStatus(msg){
+function setShareStatus(msg,type='ok'){
   const el=document.getElementById('share-status');
   if(!el)return;
   el.textContent=msg;
+  el.className=`share-status small ${type}`;
+  el.hidden=false;
   clearTimeout(setShareStatus._t);
-  setShareStatus._t=setTimeout(()=>{if(el)el.textContent=''},2200);
+  setShareStatus._t=setTimeout(()=>{if(el){el.textContent='';el.hidden=true}},3600);
 }
-async function copyResultLink(){
-  if(!CURRENT_SHARE)return;
-  const payload=`${shareText()}\n${CURRENT_SHARE.url}`;
+function setShareBusy(busy){
+  const btn=document.getElementById('share-primary-btn');
+  if(!btn)return;
+  btn.disabled=busy;
+  btn.textContent=busy?'공유창 여는 중…':'결과 공유하기';
+}
+function showManualShare(payload){
+  let box=document.getElementById('share-fallback-box');
+  if(!box){
+    box=document.createElement('div');
+    box.id='share-fallback-box';
+    box.className='share-fallback-box';
+    box.innerHTML=`<div class="share-fallback-head"><b>직접 공유하기</b><button type="button" class="share-close" onclick="document.getElementById('share-fallback-box')?.remove()">닫기</button></div><p class="small">아래 내용을 길게 눌러 복사한 뒤 원하는 앱에 붙여넣으세요.</p><textarea id="share-fallback-text" readonly></textarea>`;
+    document.body.appendChild(box);
+  }
+  const ta=document.getElementById('share-fallback-text');
+  if(ta){ta.value=payload;ta.focus();ta.select()}
+}
+async function copyResultLink(opts={}){
+  if(!CURRENT_SHARE)return false;
+  const payload=shareText();
   try{
-    await navigator.clipboard.writeText(payload);
-    setShareStatus('결과와 링크를 복사했습니다.');
-    analyticsEvent('share_copy',{method:'clipboard'});
+    if(navigator.clipboard&&window.isSecureContext){
+      await navigator.clipboard.writeText(payload);
+    }else{
+      throw new Error('clipboard-api-unavailable');
+    }
+    setShareStatus(opts.fallback?'공유창을 열 수 없어 결과와 링크를 복사했습니다. 원하는 앱에 붙여넣으세요.':'결과와 링크를 복사했습니다.','ok');
+    analyticsEvent('share_copy',{method:opts.fallback?'share_fallback_clipboard':'clipboard'});
+    return true;
   }catch(err){
     const ta=document.createElement('textarea');
-    ta.value=payload;ta.style.position='fixed';ta.style.opacity='0';
-    document.body.appendChild(ta);ta.select();
-    try{document.execCommand('copy');setShareStatus('결과와 링크를 복사했습니다.');analyticsEvent('share_copy',{method:'legacy_clipboard'})}
-    catch(e){setShareStatus('복사하지 못했습니다. 링크를 직접 복사해 주세요.')}
+    ta.value=payload;
+    ta.setAttribute('readonly','');
+    ta.style.position='fixed';
+    ta.style.left='-9999px';
+    ta.style.top='0';
+    document.body.appendChild(ta);
+    ta.focus();ta.select();
+    let copied=false;
+    try{copied=document.execCommand('copy')}catch(e){}
     ta.remove();
+    if(copied){
+      setShareStatus(opts.fallback?'공유창을 열 수 없어 결과와 링크를 복사했습니다. 원하는 앱에 붙여넣으세요.':'결과와 링크를 복사했습니다.','ok');
+      analyticsEvent('share_copy',{method:'legacy_clipboard'});
+      return true;
+    }
+    setShareStatus('자동 복사가 지원되지 않는 브라우저입니다. 아래 공유 내용을 직접 복사해 주세요.','error');
+    showManualShare(payload);
+    return false;
   }
 }
 async function shareCurrentResult(){
   if(!CURRENT_SHARE)return;
-  const data={title:`내 더 지니어스 결과: ${CURRENT_SHARE.name}`,text:shareText(),url:CURRENT_SHARE.url};
-  if(navigator.share){
-    try{await navigator.share(data);setShareStatus('공유를 완료했습니다.');analyticsEvent('share_native',{method:'web_share'});return}
-    catch(err){if(err&&err.name==='AbortError')return}
+  const payload=shareText();
+  const data={title:`내 더 지니어스 결과: ${CURRENT_SHARE.name}`,text:payload};
+  setShareBusy(true);
+  try{
+    if(typeof navigator.share==='function'){
+      if(typeof navigator.canShare==='function'&&!navigator.canShare(data)){
+        await copyResultLink({fallback:true});
+        return;
+      }
+      try{
+        await navigator.share(data);
+        setShareStatus('공유를 완료했습니다.','ok');
+        analyticsEvent('share_native',{method:'web_share'});
+        return;
+      }catch(err){
+        if(err&&err.name==='AbortError'){
+          setShareStatus('공유를 취소했습니다.','muted');
+          return;
+        }
+        console.warn('Native share failed',err);
+      }
+    }
+    await copyResultLink({fallback:true});
+  }finally{
+    setShareBusy(false);
   }
-  await copyResultLink();
 }
 function submitSelfRating(rating){
   if(RATING_SENT)return;
@@ -204,7 +262,7 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   analyticsSaveRun({
     id:ANALYTICS_RUN_ID,
     schema_version:1,
-    test_version:'v2.3',
+    test_version:'v2.4',
     started_at:startedAt,
     completed_at:completedAt,
     duration_ms:Math.max(0,Date.now()-new Date(startedAt).getTime()),
@@ -239,9 +297,9 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   <h2 class="section-title">내 플레이의 핵심 특징</h2>
   <div class="grid">${dominant.map(([t,v])=>traitCard(t,v)).join('')}</div>
   <div class="share-panel">
-    <button class="primary share-primary" onclick="shareCurrentResult()">결과 공유하기</button>
+    <button id="share-primary-btn" class="primary share-primary" onclick="shareCurrentResult()">결과 공유하기</button>
     <button class="share-secondary" onclick="copyResultLink()">결과 + 링크 복사</button>
-    <div id="share-status" class="share-status small" aria-live="polite"></div>
+    <div id="share-status" class="share-status small" aria-live="polite" hidden></div>
   </div>
 </div>
 <div class="result-pair-grid">
