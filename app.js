@@ -47,7 +47,7 @@ function prepareAdaptive(){
   const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);
   extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true
 }
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.5</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.6</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div>${instagramShareHint()}</div></div>`}
 function beginTest(){if(!TEST_STARTED_AT)TEST_STARTED_AT=new Date().toISOString();showQ()}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function currentSavedAnswer(){
@@ -119,6 +119,22 @@ function setShareStatus(msg,type='ok'){
   clearTimeout(setShareStatus._t);
   setShareStatus._t=setTimeout(()=>{if(el){el.textContent='';el.hidden=true}},3600);
 }
+function isInstagramInApp(){
+  return /Instagram/i.test(navigator.userAgent||'');
+}
+function instagramShareHint(){
+  return isInstagramInApp()?'<div class="instagram-browser-note small">Instagram 앱 안에서는 시스템 공유가 제한될 수 있어요. 결과 화면에서는 링크 복사를 우선 지원합니다.</div>':'';
+}
+function showInstagramBrowserHelp(){
+  closeShareSheet();
+  let box=document.getElementById('instagram-help-box');
+  if(box)box.remove();
+  box=document.createElement('div');
+  box.id='instagram-help-box';
+  box.className='share-fallback-box';
+  box.innerHTML=`<div class="share-fallback-head"><b>Instagram 브라우저에서 공유하기</b><button type="button" class="share-close" onclick="document.getElementById('instagram-help-box')?.remove()">닫기</button></div><p class="small">가장 안정적인 방법은 <b>결과 + 링크 복사</b> 후 원하는 앱에 붙여넣는 것입니다. 외부 브라우저가 필요하면 Instagram 우측 상단 메뉴에서 ‘브라우저에서 열기’를 사용하세요.</p>`;
+  document.body.appendChild(box);
+}
 function setShareBusy(busy){
   const btn=document.getElementById('share-primary-btn');
   if(!btn)return;
@@ -134,21 +150,26 @@ function openShareSheet(){
   const overlay=document.createElement('div');
   overlay.id='share-sheet';
   overlay.className='share-sheet-overlay';
+  const instagram=isInstagramInApp();
+  const actions=instagram
+    ? `<button class="share-choice primary" type="button" onclick="copyResultLink({instagram:true});closeShareSheet()">결과 + 링크 복사 <span>Instagram 앱 안에서 가장 안정적</span></button>
+       <button class="share-choice" type="button" onclick="showInstagramBrowserHelp()">외부 브라우저로 여는 방법</button>`
+    : `<button class="share-choice primary" type="button" onclick="nativeShareResult()">공유 앱 열기 <span>카카오톡·메시지 등</span></button>
+       <div class="share-choice-grid">
+         <button class="share-choice" type="button" onclick="shareToX()">X에 공유</button>
+         <button class="share-choice" type="button" onclick="shareToThreads()">Threads에 공유</button>
+       </div>
+       <button class="share-choice" type="button" onclick="copyResultLink();closeShareSheet()">결과 + 링크 복사</button>`;
   overlay.innerHTML=`
     <div class="share-sheet" role="dialog" aria-modal="true" aria-label="결과 공유">
       <div class="share-sheet-head">
         <div>
-          <div class="small">결과 공유</div>
+          <div class="small">${instagram?'Instagram 브라우저 공유':'결과 공유'}</div>
           <b>${CURRENT_SHARE.name} · ${CURRENT_SHARE.score}점</b>
         </div>
         <button class="share-close" type="button" onclick="closeShareSheet()">닫기</button>
       </div>
-      <button class="share-choice primary" type="button" onclick="nativeShareResult()">공유 앱 열기 <span>카카오톡·메시지 등</span></button>
-      <div class="share-choice-grid">
-        <button class="share-choice" type="button" onclick="shareToX()">X에 공유</button>
-        <button class="share-choice" type="button" onclick="shareToThreads()">Threads에 공유</button>
-      </div>
-      <button class="share-choice" type="button" onclick="copyResultLink();closeShareSheet()">결과 + 링크 복사</button>
+      ${actions}
     </div>`;
   overlay.addEventListener('click',e=>{if(e.target===overlay)closeShareSheet()});
   document.body.appendChild(overlay);
@@ -309,7 +330,7 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   analyticsSaveRun({
     id:ANALYTICS_RUN_ID,
     schema_version:1,
-    test_version:'v2.5',
+    test_version:'v2.6',
     started_at:startedAt,
     completed_at:completedAt,
     duration_ms:Math.max(0,Date.now()-new Date(startedAt).getTime()),
