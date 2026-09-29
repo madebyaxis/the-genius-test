@@ -34,3 +34,15 @@
   .share-panel{grid-template-columns:1fr}
   .share-status{grid-column:1}
 }
+.result-pair-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.result-pair-grid .card{margin:0}
+.mini-result-card{min-width:0}
+.mini-player{display:flex;align-items:center;gap:14px;margin:14px 0}
+.mini-name{font-size:26px;font-weight:850;line-height:1.05}
+.mini-type{font-size:15px;margin-top:5px}
+.mini-score{font-size:14px;font-weight:750;color:#d7bb8b;margin-top:7px}
+.ally-card{border-color:#5d4d34;background:linear-gradient(180deg,#191812,#171a1f 68%)}
+.ally-reason{font-size:15px;line-height:1.6;margin:10px 0;color:#eee6da}
+@media(max-width:620px){
+  .result-pair-grid{grid-template-columns:1fr}
+}
