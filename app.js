@@ -5,6 +5,24 @@ const sds=T.map((_,j)=>Math.sqrt(names.reduce((s,n)=>s+(C[n][1][j]-means[j])**2,
 const CZ=names.map(n=>C[n][1].map((x,j)=>(x-means[j])/sds[j]));
 const CZN=CZ.map(v=>{const m=Math.hypot(...v)||1;return v.map(x=>x/m)});
 let idx=0,e=Array(nT).fill(0),extra=[],extraMode=null,extraKey=null;
+const PHOTO_POS={
+  '장동민':[0,0],'홍진호':[1,0],'이상민':[2,0],'오현민':[3,0],
+  '김경란':[0,1],'김경훈':[1,1],'임요환':[2,1],'성규':[3,1],
+  '유정현':[0,2],'최연승':[1,2],'김구라':[2,2],'최정문':[3,2]
+};
+async function loadVisuals(){
+  try{
+    const [hero,line0,line1]=await Promise.all([
+      fetch('assets-data/hero.b64').then(r=>r.text()),
+      fetch('assets-data/lineup-0.b64').then(r=>r.text()),
+      fetch('assets-data/lineup-1.b64').then(r=>r.text())
+    ]);
+    document.documentElement.style.setProperty('--hero-img',`url("data:image/webp;base64,${hero.trim()}")`);
+    document.documentElement.style.setProperty('--lineup-img',`url("data:image/webp;base64,${(line0+line1).replace(/\s/g,'')}")`);
+  }catch(err){console.warn('Visual assets failed to load',err)}
+}
+function photoStyle(name){const p=PHOTO_POS[name]||[0,0];return `--pc:${p[0]};--pr:${p[1]}`}
+function playerPhoto(name,cls=''){return `<div class="player-photo ${cls}" style="${photoStyle(name)}" role="img" aria-label="${name} AI 스타일 이미지"></div>`}
 function centeredOptions(q){const rows=q.a.map(o=>T.map(t=>o.w[t]||0)); const mean=T.map((_,j)=>rows.reduce((s,r)=>s+r[j],0)/rows.length);return rows.map(r=>{let v=r.map((x,j)=>x-mean[j]);const m=Math.hypot(...v)||1;return v.map(x=>x/m)})}
 function addVector(v,mult=1){v.forEach((x,j)=>e[j]+=mult*x)}
 function unit(v){const m=Math.hypot(...v)||1;return v.map(x=>x/m)}
@@ -12,7 +30,7 @@ function dot(a,b){return a.reduce((s,x,j)=>s+x*b[j],0)}
 function scores(){const u=unit(e);return names.map((n,k)=>[n,dot(u,CZN[k])+(B[n]||0)]).sort((a,b)=>b[1]-a[1])}
 function keyFor(a,b){return A[a+'|'+b]?a+'|'+b:(A[b+'|'+a]?b+'|'+a:null)}
 function prepareAdaptive(){const s=scores(),gap=s[0][1]-s[1][1]; if(gap>=.09) return false;const key=keyFor(s[0][0],s[1][0]);if(key){extra=A[key];extraMode='manual';extraKey=key;return true}const ia=names.indexOf(s[0][0]),ib=names.indexOf(s[1][0]);const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true}
-function start(){app.innerHTML=`<div class="card"><div class="small">THE GENIUS CHARACTER TEST · v1.5</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary" onclick="showQ()">테스트 시작</button></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v1.6</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="showQ()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div></div></div>`}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function showQ(){let q=currentQ();if(!q){if(idx===Q.length&&prepareAdaptive()){showQ();return}return result()} const total=Q.length+extra.length;const pct=Math.min(100,(idx+1)/Math.max(Q.length,total)*100);app.innerHTML=`<div class="meta small"><span>${idx<Q.length?'기본 분석':'정밀 판별'}</span><span>${idx+1}/${total}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="card"><div class="q">${q.q}</div>${q.a.map((o,k)=>`<button onclick="pick(${k})">${o.t}</button>`).join('')}</div>`}
 function pick(k){let q=currentQ(),v=centeredOptions(q)[k];addVector(v,idx<Q.length?1:2);idx++;showQ()}
@@ -33,5 +51,45 @@ const TRAIT_TEXT={
   '압박안정':['위기 대응','위기일수록 차분하게 정리하는 편','위기일수록 빠르게 결단하는 편']
 };
 function traitCard(t,v){const x=TRAIT_TEXT[t]||[t,t+'이 강한 편',t+'이 낮은 편'];return `<div class="pill"><div class="small">${x[0]}</div><b>${v>=0?x[1]:x[2]}</b></div>`}
-function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;app.innerHTML=`<div class="card"><div class="small">당신과 가장 닮은 플레이어</div><div class="big">${top[0]}</div><div class="result-type">${C[top[0]][0]}</div><p class="result-desc">${C[top[0]][2]}</p><div class="score-label small">플레이 스타일 유사도</div><div class="score">${matchDisplay(top[1])}<span class="small">점</span></div><div class="small muted">이 점수는 실력이나 능력 평가가 아니라, 이 테스트에서 나타난 플레이 방식의 상대적 유사도입니다.</div><div class="result-status">결과 구분: <span class="confidence">${confidenceLabel(gap,used)}</span>${used?' · 추가 판별 질문 반영':''}</div><h2 class="section-title">내 플레이의 핵심 특징</h2><div class="grid">${dominant.map(([t,v])=>traitCard(t,v)).join('')}</div></div><div class="card"><h2>나와 비슷한 플레이어 TOP 4</h2><p class="muted small">점수가 높을수록 이번 답변에서 나타난 플레이 방식이 비슷합니다.</p>${s.slice(0,4).map((x,j)=>`<div class="rank"><span><b>${j+1}. ${x[0]}</b><br><span class="small">${C[x[0]][0]}</span></span><b>${matchDisplay(x[1])}점</b></div>`).join('')}</div><div class="card"><div class="small">나와 플레이 방식이 가장 다른 사람</div><div class="big">${last[0]}</div><div class="result-type">${C[last[0]][0]}</div><p>${C[last[0]][2]}</p><p class="muted small">좋고 나쁨의 의미가 아니라, 이번 답변에서 나타난 의사결정 방식이 가장 반대쪽에 가깝다는 뜻입니다.</p></div><div class="card"><div class="small">테스트 안내</div><p class="muted">비공식 팬 테스트입니다. 결과는 방송에서 관찰된 플레이 패턴을 바탕으로 만든 서비스용 모델이며, tvN이나 출연자의 공식 평가가 아닙니다.</p><button class="primary" onclick="location.reload()">다시 테스트하기</button></div>`}
-start();
+function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;app.innerHTML=`
+<div class="card">
+  <div class="result-top">
+    ${playerPhoto(top[0],'player-photo-lg')}
+    <div class="result-copy">
+      <div class="small">당신과 가장 닮은 플레이어</div>
+      <div class="big">${top[0]}</div>
+      <div class="result-type">${C[top[0]][0]}</div>
+      <p class="result-desc">${C[top[0]][2]}</p>
+      <div class="score-label small">플레이 스타일 유사도</div>
+      <div class="score">${matchDisplay(top[1])}<span class="small">점</span></div>
+    </div>
+  </div>
+  <div class="small muted">이 점수는 실력이나 능력 평가가 아니라, 이 테스트에서 나타난 플레이 방식의 상대적 유사도입니다.</div>
+  <div class="result-status">결과 구분: <span class="confidence">${confidenceLabel(gap,used)}</span>${used?' · 추가 판별 질문 반영':''}</div>
+  <h2 class="section-title">내 플레이의 핵심 특징</h2>
+  <div class="grid">${dominant.map(([t,v])=>traitCard(t,v)).join('')}</div>
+</div>
+<div class="card">
+  <h2>나와 비슷한 플레이어 TOP 4</h2>
+  <p class="muted small">점수가 높을수록 이번 답변에서 나타난 플레이 방식이 비슷합니다.</p>
+  ${s.slice(0,4).map((x,j)=>`<div class="rank rank-player">${playerPhoto(x[0],'player-photo-sm')}<span class="rank-copy"><b>${j+1}. ${x[0]}</b><br><span class="small">${C[x[0]][0]}</span></span><b class="rank-score">${matchDisplay(x[1])}점</b></div>`).join('')}
+</div>
+<div class="card">
+  <div class="small">나와 플레이 방식이 가장 다른 사람</div>
+  <div class="opposite-row">
+    ${playerPhoto(last[0],'player-photo-md')}
+    <div>
+      <div class="big">${last[0]}</div>
+      <div class="result-type">${C[last[0]][0]}</div>
+      <p>${C[last[0]][2]}</p>
+    </div>
+  </div>
+  <p class="muted small">좋고 나쁨의 의미가 아니라, 이번 답변에서 나타난 의사결정 방식이 가장 반대쪽에 가깝다는 뜻입니다.</p>
+</div>
+<div class="card">
+  <div class="small">테스트 안내</div>
+  <p class="muted">비공식 팬 테스트입니다. 결과는 방송에서 관찰된 플레이 패턴을 바탕으로 만든 서비스용 모델이며, tvN이나 출연자의 공식 평가가 아닙니다.</p>
+  <p class="muted small">인물 이미지는 실제 사진이 아니라 AI로 제작한 스타일 이미지입니다.</p>
+  <button class="primary" onclick="location.reload()">다시 테스트하기</button>
+</div>`}
+loadVisuals().finally(start);
