@@ -111,3 +111,20 @@
   .story-preview-overlay{padding:10px;align-items:flex-end}
   .story-preview-modal{width:100%;max-height:95vh;border-radius:18px}
 }
+/* v2.8 final share controls: exactly two primary actions */
+.share-panel{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:10px;
+  margin-top:22px;
+  padding-top:18px;
+  border-top:1px solid #2a2f36
+}
+.share-panel button{margin:0;text-align:center}
+.share-primary{background:#f1e4cf;color:#17120d;border-color:#c7a36b}
+.story-direct-btn{border-color:#6b5535;background:#241f18;color:#ead6b2}
+.share-copy-direct{display:none!important}
+.story-preview-actions-single{grid-template-columns:1fr}
+@media(max-width:520px){
+  .share-panel{grid-template-columns:1fr 1fr}
+}
