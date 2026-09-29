@@ -47,7 +47,7 @@ function prepareAdaptive(){
   const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);
   extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true
 }
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.6</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div>${instagramShareHint()}</div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.7</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div>${instagramShareHint()}</div></div>`}
 function beginTest(){if(!TEST_STARTED_AT)TEST_STARTED_AT=new Date().toISOString();showQ()}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function currentSavedAnswer(){
@@ -100,11 +100,13 @@ function pick(k){
   showQ()
 }
 function matchDisplay(raw){return Math.max(55,Math.min(97,Math.round(50+55*raw)))}
-let CURRENT_SHARE=null;
+let CURRENT_SHARE=null,CURRENT_STORY=null;
 function canonicalUrl(){return location.origin+location.pathname}
 function setShareResult(name,type,score){
   CURRENT_SHARE={name,type,score,url:canonicalUrl()};
 }
+function setStoryResult(data){CURRENT_STORY=data}
+
 function shareText(includeUrl=true){
   if(!CURRENT_SHARE)return '';
   const base=`나는 더 지니어스에서 ${CURRENT_SHARE.name} 타입!\n${CURRENT_SHARE.type} · 플레이 스타일 유사도 ${CURRENT_SHARE.score}점\n\n너는 누구일까?`;
@@ -118,6 +120,196 @@ function setShareStatus(msg,type='ok'){
   el.hidden=false;
   clearTimeout(setShareStatus._t);
   setShareStatus._t=setTimeout(()=>{if(el){el.textContent='';el.hidden=true}},3600);
+}
+function storyFileName(){
+  const safe=(CURRENT_STORY?.name||'result').replace(/[^0-9A-Za-z가-힣_-]+/g,'-');
+  return `the-genius-${safe}-story.png`;
+}
+function loadCanvasImage(src){
+  return new Promise((resolve,reject)=>{
+    const img=new Image();
+    img.onload=()=>resolve(img);
+    img.onerror=reject;
+    img.src=src;
+  });
+}
+function canvasRoundRect(ctx,x,y,w,h,r){
+  const rr=Math.min(r,w/2,h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y);
+  ctx.arcTo(x+w,y,x+w,y+h,rr);
+  ctx.arcTo(x+w,y+h,x,y+h,rr);
+  ctx.arcTo(x,y+h,x,y,rr);
+  ctx.arcTo(x,y,x+w,y,rr);
+  ctx.closePath();
+}
+function canvasCover(ctx,img,x,y,w,h){
+  const s=Math.max(w/img.width,h/img.height);
+  const sw=w/s,sh=h/s,sx=(img.width-sw)/2,sy=(img.height-sh)/2;
+  ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h);
+}
+function wrapCanvasText(ctx,text,maxWidth){
+  const words=String(text).split(/\s+/),lines=[];let line='';
+  for(const word of words){
+    const test=line?line+' '+word:word;
+    if(ctx.measureText(test).width>maxWidth&&line){lines.push(line);line=word}else line=test;
+  }
+  if(line)lines.push(line);
+  return lines;
+}
+async function createStoryBlob(){
+  if(!CURRENT_STORY)throw new Error('story-result-missing');
+  if(document.fonts?.ready)try{await document.fonts.ready}catch(e){}
+  const W=1080,H=1920,canvas=document.createElement('canvas');
+  canvas.width=W;canvas.height=H;
+  const ctx=canvas.getContext('2d');
+  const bg=ctx.createLinearGradient(0,0,W,H);
+  bg.addColorStop(0,'#15120e');bg.addColorStop(.42,'#0b0d10');bg.addColorStop(1,'#121419');
+  ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+  const glow=ctx.createRadialGradient(780,220,20,780,220,620);
+  glow.addColorStop(0,'rgba(196,151,83,.22)');glow.addColorStop(1,'rgba(196,151,83,0)');
+  ctx.fillStyle=glow;ctx.fillRect(0,0,W,H);
+
+  ctx.strokeStyle='rgba(211,177,110,.15)';ctx.lineWidth=2;
+  for(let i=0;i<8;i++){
+    ctx.beginPath();ctx.moveTo(760+i*42,-40);ctx.lineTo(1080,290+i*72);ctx.stroke();
+  }
+  ctx.fillStyle='#d6b16e';ctx.font='700 28px system-ui, -apple-system, sans-serif';ctx.letterSpacing='4px';
+  ctx.fillText('THE GENIUS · PLAYER MATCH',72,105);
+  ctx.fillStyle='#f4efe7';ctx.font='800 48px system-ui, -apple-system, sans-serif';
+  ctx.fillText('나는 더 지니어스에서',72,190);
+
+  const portrait=await loadCanvasImage(PLAYER_IMG[CURRENT_STORY.name]);
+  const px=72,py=255,pw=420,ph=420;
+  ctx.save();canvasRoundRect(ctx,px,py,pw,ph,38);ctx.clip();canvasCover(ctx,portrait,px,py,pw,ph);ctx.restore();
+  ctx.strokeStyle='rgba(214,177,110,.62)';ctx.lineWidth=3;canvasRoundRect(ctx,px,py,pw,ph,38);ctx.stroke();
+
+  ctx.fillStyle='#aeb4bd';ctx.font='650 28px system-ui, -apple-system, sans-serif';ctx.fillText('가장 닮은 플레이어',540,300);
+  ctx.fillStyle='#ffffff';ctx.font='900 76px system-ui, -apple-system, sans-serif';ctx.fillText(CURRENT_STORY.name,540,392);
+  ctx.fillStyle='#e0c99f';ctx.font='750 34px system-ui, -apple-system, sans-serif';
+  wrapCanvasText(ctx,CURRENT_STORY.type,450).slice(0,2).forEach((line,i)=>ctx.fillText(line,540,448+i*44));
+  ctx.fillStyle='#858c95';ctx.font='650 25px system-ui, -apple-system, sans-serif';ctx.fillText('플레이 스타일 유사도',540,575);
+  ctx.fillStyle='#f2e6d1';ctx.font='900 92px system-ui, -apple-system, sans-serif';ctx.fillText(String(CURRENT_STORY.score),540,665);
+  ctx.fillStyle='#aeb4bd';ctx.font='700 30px system-ui, -apple-system, sans-serif';ctx.fillText('점',665,665);
+
+  ctx.fillStyle='#f4efe7';ctx.font='800 36px system-ui, -apple-system, sans-serif';ctx.fillText('내 플레이의 핵심 특징',72,765);
+  const traits=CURRENT_STORY.traits||[];
+  traits.slice(0,4).forEach((t,i)=>{
+    const x=72+(i%2)*474,y=810+Math.floor(i/2)*132,w=438,h=104;
+    ctx.fillStyle='rgba(255,255,255,.055)';canvasRoundRect(ctx,x,y,w,h,22);ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.10)';ctx.lineWidth=2;canvasRoundRect(ctx,x,y,w,h,22);ctx.stroke();
+    ctx.fillStyle='#aeb4bd';ctx.font='650 22px system-ui, -apple-system, sans-serif';ctx.fillText(t.label,x+24,y+34);
+    ctx.fillStyle='#f4efe7';ctx.font='750 27px system-ui, -apple-system, sans-serif';
+    const lines=wrapCanvasText(ctx,t.text,w-48).slice(0,2);
+    lines.forEach((line,j)=>ctx.fillText(line,x+24,y+70+j*30));
+  });
+
+  const cardY=1110,cardW=438,cardH=210;
+  [
+    {x:72,label:'비슷한 또 다른 플레이어',name:CURRENT_STORY.similar,type:CURRENT_STORY.similarType},
+    {x:570,label:'나와 팀으로 잘 맞는 플레이어',name:CURRENT_STORY.ally,type:CURRENT_STORY.allyType}
+  ].forEach((d,i)=>{
+    ctx.fillStyle=i?'rgba(87,67,37,.22)':'rgba(255,255,255,.045)';canvasRoundRect(ctx,d.x,cardY,cardW,cardH,26);ctx.fill();
+    ctx.strokeStyle=i?'rgba(214,177,110,.30)':'rgba(255,255,255,.10)';ctx.lineWidth=2;canvasRoundRect(ctx,d.x,cardY,cardW,cardH,26);ctx.stroke();
+    ctx.fillStyle='#9fa6af';ctx.font='650 21px system-ui, -apple-system, sans-serif';ctx.fillText(d.label,d.x+26,cardY+42);
+    ctx.fillStyle='#ffffff';ctx.font='850 46px system-ui, -apple-system, sans-serif';ctx.fillText(d.name,d.x+26,cardY+105);
+    ctx.fillStyle='#d9c39d';ctx.font='650 23px system-ui, -apple-system, sans-serif';
+    wrapCanvasText(ctx,d.type,cardW-52).slice(0,2).forEach((line,j)=>ctx.fillText(line,d.x+26,cardY+148+j*29));
+  });
+
+  ctx.fillStyle='rgba(255,255,255,.06)';canvasRoundRect(ctx,72,1380,936,265,28);ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.09)';ctx.lineWidth=2;canvasRoundRect(ctx,72,1380,936,265,28);ctx.stroke();
+  ctx.fillStyle='#d6b16e';ctx.font='800 26px system-ui, -apple-system, sans-serif';ctx.fillText('PLAY STYLE',104,1430);
+  ctx.fillStyle='#f4efe7';ctx.font='750 31px system-ui, -apple-system, sans-serif';
+  const descLines=wrapCanvasText(ctx,CURRENT_STORY.desc,870).slice(0,4);
+  descLines.forEach((line,i)=>ctx.fillText(line,104,1485+i*48));
+
+  ctx.fillStyle='#f4efe7';ctx.font='850 36px system-ui, -apple-system, sans-serif';ctx.fillText('너는 누구일까?',72,1740);
+  ctx.fillStyle='#aeb4bd';ctx.font='600 24px system-ui, -apple-system, sans-serif';ctx.fillText('madebyaxis.github.io/the-genius-test/',72,1784);
+  ctx.fillStyle='#737a84';ctx.font='550 20px system-ui, -apple-system, sans-serif';ctx.fillText('비공식 팬 테스트 · 플레이 방식의 상대적 유사도',72,1835);
+  ctx.textAlign='right';ctx.fillStyle='#d6b16e';ctx.font='750 22px system-ui, -apple-system, sans-serif';ctx.fillText('MADE BY AXIS',1008,1835);ctx.textAlign='left';
+
+  return await new Promise((resolve,reject)=>canvas.toBlob(b=>b?resolve(b):reject(new Error('png-failed')),'image/png',1));
+}
+function revokeStoryPreview(){
+  const box=document.getElementById('story-preview');
+  if(box?.dataset.url)URL.revokeObjectURL(box.dataset.url);
+  box?.remove();
+}
+function showStoryPreview(blob){
+  revokeStoryPreview();
+  closeShareSheet();
+  const url=URL.createObjectURL(blob);
+  const overlay=document.createElement('div');
+  overlay.id='story-preview';
+  overlay.className='story-preview-overlay';
+  overlay.dataset.url=url;
+  overlay.innerHTML=`
+    <div class="story-preview-modal">
+      <div class="story-preview-head">
+        <div><div class="small">1080 × 1920</div><b>스토리용 결과 카드</b></div>
+        <button class="share-close" type="button" onclick="revokeStoryPreview()">닫기</button>
+      </div>
+      <div class="story-preview-frame"><img src="${url}" alt="더 지니어스 테스트 스토리용 결과 카드"></div>
+      <div class="story-preview-actions">
+        <button class="primary" type="button" onclick="saveStoryImage()">이미지 저장</button>
+        <button type="button" onclick="shareStoryImage(true)">공유 앱 열기</button>
+      </div>
+      <p class="small story-help">${isInstagramInApp()?'Instagram 앱 안에서는 공유 API가 제한될 수 있습니다. 이미지가 저장되지 않으면 카드를 길게 눌러 저장하거나 우측 상단 메뉴에서 외부 브라우저로 연 뒤 다시 시도하세요.':'Instagram 스토리에서는 이 이미지를 선택한 뒤 링크 스티커에 테스트 주소를 붙이면 됩니다.'}</p>
+    </div>`;
+  overlay.addEventListener('click',e=>{if(e.target===overlay)revokeStoryPreview()});
+  document.body.appendChild(overlay);
+}
+async function saveStoryImage(){
+  try{
+    const blob=await createStoryBlob();
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;a.download=storyFileName();a.style.display='none';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    analyticsEvent('share_native',{method:'story_image_save'});
+    setShareStatus('스토리 이미지를 저장했습니다.','ok');
+  }catch(err){
+    console.warn('Story image save failed',err);
+    setShareStatus('이미지 저장에 실패했습니다. 미리보기에서 길게 눌러 저장해 주세요.','error');
+  }
+}
+async function shareStoryImage(fromPreview=false){
+  if(!CURRENT_STORY)return;
+  setShareBusy(true);
+  try{
+    const blob=await createStoryBlob();
+    const file=new File([blob],storyFileName(),{type:'image/png'});
+    if(!isInstagramInApp()&&typeof navigator.share==='function'){
+      let can=true;
+      if(typeof navigator.canShare==='function'){
+        try{can=navigator.canShare({files:[file]})}catch(e){can=false}
+      }
+      if(can){
+        try{
+          await navigator.share({files:[file],title:`내 더 지니어스 결과: ${CURRENT_STORY.name}`,text:'내 더 지니어스 플레이 스타일 결과'});
+          analyticsEvent('share_native',{method:'story_image_share'});
+          setShareStatus('스토리 이미지를 공유했습니다.','ok');
+          if(fromPreview)revokeStoryPreview();
+          return;
+        }catch(err){
+          if(err?.name==='AbortError')return;
+          console.warn('Story file share failed',err);
+        }
+      }
+    }
+    showStoryPreview(blob);
+    analyticsEvent('share_native',{method:'story_image_preview'});
+  }catch(err){
+    console.warn('Story image generation failed',err);
+    setShareStatus('스토리 이미지를 만들지 못했습니다. 다시 시도해 주세요.','error');
+  }finally{
+    setShareBusy(false);
+  }
+}
+async function makeStoryImage(){
+  await shareStoryImage(false);
 }
 function isInstagramInApp(){
   return /Instagram/i.test(navigator.userAgent||'');
@@ -152,9 +344,11 @@ function openShareSheet(){
   overlay.className='share-sheet-overlay';
   const instagram=isInstagramInApp();
   const actions=instagram
-    ? `<button class="share-choice primary" type="button" onclick="copyResultLink({instagram:true});closeShareSheet()">결과 + 링크 복사 <span>Instagram 앱 안에서 가장 안정적</span></button>
+    ? `<button class="share-choice primary" type="button" onclick="makeStoryImage()">스토리용 이미지 만들기 <span>1080 × 1920 PNG</span></button>
+       <button class="share-choice" type="button" onclick="copyResultLink({instagram:true});closeShareSheet()">결과 + 링크 복사</button>
        <button class="share-choice" type="button" onclick="showInstagramBrowserHelp()">외부 브라우저로 여는 방법</button>`
-    : `<button class="share-choice primary" type="button" onclick="nativeShareResult()">공유 앱 열기 <span>카카오톡·메시지 등</span></button>
+    : `<button class="share-choice primary" type="button" onclick="makeStoryImage()">스토리 이미지 공유 <span>Instagram · 카카오톡 등</span></button>
+       <button class="share-choice" type="button" onclick="nativeShareResult()">텍스트 + 링크 공유</button>
        <div class="share-choice-grid">
          <button class="share-choice" type="button" onclick="shareToX()">X에 공유</button>
          <button class="share-choice" type="button" onclick="shareToThreads()">Threads에 공유</button>
@@ -326,11 +520,22 @@ function allyReason(baseName,candName){
   return `플레이 스타일 모델상 ${ranked[0]}과 ${ranked[1]}에서 역할을 나누기 좋은 조합입니다.`;
 }
 function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;const ally=bestAlly(top[0],[similar[0],last[0]]);setShareResult(top[0],C[top[0]][0],matchDisplay(top[1]));
+  setStoryResult({
+    name:top[0],
+    type:C[top[0]][0],
+    desc:C[top[0]][2],
+    score:matchDisplay(top[1]),
+    traits:dominant.map(([t,v])=>({label:(TRAIT_TEXT[t]||[t])[0],text:(TRAIT_TEXT[t]||[t,t,t])[v>=0?1:2]})),
+    similar:similar[0],
+    similarType:C[similar[0]][0],
+    ally,
+    allyType:C[ally][0]
+  });
   const completedAt=new Date().toISOString(),startedAt=TEST_STARTED_AT||completedAt,params=new URLSearchParams(location.search);
   analyticsSaveRun({
     id:ANALYTICS_RUN_ID,
     schema_version:1,
-    test_version:'v2.6',
+    test_version:'v2.7',
     started_at:startedAt,
     completed_at:completedAt,
     duration_ms:Math.max(0,Date.now()-new Date(startedAt).getTime()),
@@ -366,7 +571,8 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   <div class="grid">${dominant.map(([t,v])=>traitCard(t,v)).join('')}</div>
   <div class="share-panel">
     <button id="share-primary-btn" class="primary share-primary" onclick="shareCurrentResult()">결과 공유하기</button>
-    <button class="share-secondary" onclick="copyResultLink()">결과 + 링크 복사</button>
+    <button class="share-secondary story-direct-btn" onclick="makeStoryImage()">스토리 이미지 만들기</button>
+    <button class="share-secondary share-copy-direct" onclick="copyResultLink()">결과 + 링크 복사</button>
     <div id="share-status" class="share-status small" aria-live="polite" hidden></div>
   </div>
 </div>
