@@ -27,11 +27,51 @@ function dot(a,b){return a.reduce((s,x,j)=>s+x*b[j],0)}
 function scores(){const u=unit(e);return names.map((n,k)=>[n,dot(u,CZN[k])+(B[n]||0)]).sort((a,b)=>b[1]-a[1])}
 function keyFor(a,b){return A[a+'|'+b]?a+'|'+b:(A[b+'|'+a]?b+'|'+a:null)}
 function prepareAdaptive(){const s=scores(),gap=s[0][1]-s[1][1]; if(gap>=.09) return false;const key=keyFor(s[0][0],s[1][0]);if(key){extra=A[key];extraMode='manual';extraKey=key;return true}const ia=names.indexOf(s[0][0]),ib=names.indexOf(s[1][0]);const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true}
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v1.8</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="showQ()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div></div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v1.9</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="showQ()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div></div></div>`}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function showQ(){let q=currentQ();if(!q){if(idx===Q.length&&prepareAdaptive()){showQ();return}return result()} const total=Q.length+extra.length;const pct=Math.min(100,(idx+1)/Math.max(Q.length,total)*100);app.innerHTML=`<div class="meta small"><span>${idx<Q.length?'기본 분석':'정밀 판별'}</span><span>${idx+1}/${total}</span></div><div class="progress"><div class="bar" style="width:${pct}%"></div></div><div class="card"><div class="q">${q.q}</div>${q.a.map((o,k)=>`<button onclick="pick(${k})">${o.t}</button>`).join('')}</div>`}
 function pick(k){let q=currentQ(),v=centeredOptions(q)[k];addVector(v,idx<Q.length?1:2);idx++;showQ()}
 function matchDisplay(raw){return Math.max(55,Math.min(97,Math.round(50+55*raw)))}
+let CURRENT_SHARE=null;
+function canonicalUrl(){return location.origin+location.pathname}
+function setShareResult(name,type,score){
+  CURRENT_SHARE={name,type,score,url:canonicalUrl()};
+}
+function shareText(){
+  if(!CURRENT_SHARE)return '';
+  return `나는 더 지니어스에서 ${CURRENT_SHARE.name} 타입!\n${CURRENT_SHARE.type} · 플레이 스타일 유사도 ${CURRENT_SHARE.score}점\n\n너는 누구일까?`;
+}
+function setShareStatus(msg){
+  const el=document.getElementById('share-status');
+  if(!el)return;
+  el.textContent=msg;
+  clearTimeout(setShareStatus._t);
+  setShareStatus._t=setTimeout(()=>{if(el)el.textContent=''},2200);
+}
+async function copyResultLink(){
+  if(!CURRENT_SHARE)return;
+  const payload=`${shareText()}\n${CURRENT_SHARE.url}`;
+  try{
+    await navigator.clipboard.writeText(payload);
+    setShareStatus('결과와 링크를 복사했습니다.');
+  }catch(err){
+    const ta=document.createElement('textarea');
+    ta.value=payload;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');setShareStatus('결과와 링크를 복사했습니다.')}
+    catch(e){setShareStatus('복사하지 못했습니다. 링크를 직접 복사해 주세요.')}
+    ta.remove();
+  }
+}
+async function shareCurrentResult(){
+  if(!CURRENT_SHARE)return;
+  const data={title:`내 더 지니어스 결과: ${CURRENT_SHARE.name}`,text:shareText(),url:CURRENT_SHARE.url};
+  if(navigator.share){
+    try{await navigator.share(data);setShareStatus('공유를 완료했습니다.');return}
+    catch(err){if(err&&err.name==='AbortError')return}
+  }
+  await copyResultLink();
+}
 function confidenceLabel(gap,used){if(gap>=.18)return '결과가 뚜렷한 편';if(gap>=.10)return '비교적 뚜렷한 편';if(used&&gap>=.06)return '비슷한 후보가 있는 편';return '여러 유형이 섞인 편'}
 const TRAIT_TEXT={
   '구조통찰':['판 읽기','규칙과 구조를 먼저 읽는 편','사람과 흐름을 먼저 보는 편'],
@@ -48,7 +88,7 @@ const TRAIT_TEXT={
   '압박안정':['위기 대응','위기일수록 차분하게 정리하는 편','위기일수록 빠르게 결단하는 편']
 };
 function traitCard(t,v){const x=TRAIT_TEXT[t]||[t,t+'이 강한 편',t+'이 낮은 편'];return `<div class="pill"><div class="small">${x[0]}</div><b>${v>=0?x[1]:x[2]}</b></div>`}
-function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;app.innerHTML=`
+function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][1],u=unit(e);const dominant=T.map((t,j)=>[t,u[j]]).sort((a,b)=>Math.abs(b[1])-Math.abs(a[1])).slice(0,4);const used=extra.length>0;setShareResult(top[0],C[top[0]][0],matchDisplay(top[1]));app.innerHTML=`
 <div class="card">
   <div class="result-top">
     ${playerPhoto(top[0],'player-photo-lg')}
@@ -65,6 +105,11 @@ function result(){const s=scores(),top=s[0],last=s[s.length-1],gap=s[0][1]-s[1][
   <div class="result-status">결과 구분: <span class="confidence">${confidenceLabel(gap,used)}</span>${used?' · 추가 판별 질문 반영':''}</div>
   <h2 class="section-title">내 플레이의 핵심 특징</h2>
   <div class="grid">${dominant.map(([t,v])=>traitCard(t,v)).join('')}</div>
+  <div class="share-panel">
+    <button class="primary share-primary" onclick="shareCurrentResult()">결과 공유하기</button>
+    <button class="share-secondary" onclick="copyResultLink()">결과 + 링크 복사</button>
+    <div id="share-status" class="share-status small" aria-live="polite"></div>
+  </div>
 </div>
 <div class="card">
   <h2>나와 비슷한 플레이어 TOP 4</h2>
