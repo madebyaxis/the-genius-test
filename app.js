@@ -47,7 +47,7 @@ function prepareAdaptive(){
   const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);
   extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true
 }
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.4</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.5</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div></div></div>`}
 function beginTest(){if(!TEST_STARTED_AT)TEST_STARTED_AT=new Date().toISOString();showQ()}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function currentSavedAnswer(){
@@ -105,9 +105,10 @@ function canonicalUrl(){return location.origin+location.pathname}
 function setShareResult(name,type,score){
   CURRENT_SHARE={name,type,score,url:canonicalUrl()};
 }
-function shareText(){
+function shareText(includeUrl=true){
   if(!CURRENT_SHARE)return '';
-  return `나는 더 지니어스에서 ${CURRENT_SHARE.name} 타입!\n${CURRENT_SHARE.type} · 플레이 스타일 유사도 ${CURRENT_SHARE.score}점\n\n너는 누구일까?\n${CURRENT_SHARE.url}`;
+  const base=`나는 더 지니어스에서 ${CURRENT_SHARE.name} 타입!\n${CURRENT_SHARE.type} · 플레이 스타일 유사도 ${CURRENT_SHARE.score}점\n\n너는 누구일까?`;
+  return includeUrl?`${base}\n${CURRENT_SHARE.url}`:base;
 }
 function setShareStatus(msg,type='ok'){
   const el=document.getElementById('share-status');
@@ -124,6 +125,34 @@ function setShareBusy(busy){
   btn.disabled=busy;
   btn.textContent=busy?'공유창 여는 중…':'결과 공유하기';
 }
+function closeShareSheet(){
+  document.getElementById('share-sheet')?.remove();
+}
+function openShareSheet(){
+  if(!CURRENT_SHARE)return;
+  closeShareSheet();
+  const overlay=document.createElement('div');
+  overlay.id='share-sheet';
+  overlay.className='share-sheet-overlay';
+  overlay.innerHTML=`
+    <div class="share-sheet" role="dialog" aria-modal="true" aria-label="결과 공유">
+      <div class="share-sheet-head">
+        <div>
+          <div class="small">결과 공유</div>
+          <b>${CURRENT_SHARE.name} · ${CURRENT_SHARE.score}점</b>
+        </div>
+        <button class="share-close" type="button" onclick="closeShareSheet()">닫기</button>
+      </div>
+      <button class="share-choice primary" type="button" onclick="nativeShareResult()">공유 앱 열기 <span>카카오톡·메시지 등</span></button>
+      <div class="share-choice-grid">
+        <button class="share-choice" type="button" onclick="shareToX()">X에 공유</button>
+        <button class="share-choice" type="button" onclick="shareToThreads()">Threads에 공유</button>
+      </div>
+      <button class="share-choice" type="button" onclick="copyResultLink();closeShareSheet()">결과 + 링크 복사</button>
+    </div>`;
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeShareSheet()});
+  document.body.appendChild(overlay);
+}
 function showManualShare(payload){
   let box=document.getElementById('share-fallback-box');
   if(!box){
@@ -138,7 +167,7 @@ function showManualShare(payload){
 }
 async function copyResultLink(opts={}){
   if(!CURRENT_SHARE)return false;
-  const payload=shareText();
+  const payload=shareText(true);
   try{
     if(navigator.clipboard&&window.isSecureContext){
       await navigator.clipboard.writeText(payload);
@@ -170,19 +199,18 @@ async function copyResultLink(opts={}){
     return false;
   }
 }
-async function shareCurrentResult(){
+async function nativeShareResult(){
   if(!CURRENT_SHARE)return;
-  const payload=shareText();
-  const data={title:`내 더 지니어스 결과: ${CURRENT_SHARE.name}`,text:payload};
+  closeShareSheet();
   setShareBusy(true);
   try{
     if(typeof navigator.share==='function'){
-      if(typeof navigator.canShare==='function'&&!navigator.canShare(data)){
-        await copyResultLink({fallback:true});
-        return;
-      }
       try{
-        await navigator.share(data);
+        await navigator.share({
+          title:`내 더 지니어스 결과: ${CURRENT_SHARE.name}`,
+          text:shareText(false),
+          url:CURRENT_SHARE.url
+        });
         setShareStatus('공유를 완료했습니다.','ok');
         analyticsEvent('share_native',{method:'web_share'});
         return;
@@ -198,6 +226,25 @@ async function shareCurrentResult(){
   }finally{
     setShareBusy(false);
   }
+}
+function shareToX(){
+  if(!CURRENT_SHARE)return;
+  const url='https://twitter.com/intent/tweet?text='+encodeURIComponent(shareText(true));
+  closeShareSheet();
+  window.open(url,'_blank','noopener,noreferrer');
+  analyticsEvent('share_native',{method:'x_intent'});
+  setShareStatus('X 공유 화면을 열었습니다.','ok');
+}
+function shareToThreads(){
+  if(!CURRENT_SHARE)return;
+  const url='https://www.threads.net/intent/post?text='+encodeURIComponent(shareText(true));
+  closeShareSheet();
+  window.open(url,'_blank','noopener,noreferrer');
+  analyticsEvent('share_native',{method:'threads_intent'});
+  setShareStatus('Threads 공유 화면을 열었습니다.','ok');
+}
+function shareCurrentResult(){
+  openShareSheet();
 }
 function submitSelfRating(rating){
   if(RATING_SENT)return;
@@ -262,7 +309,7 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   analyticsSaveRun({
     id:ANALYTICS_RUN_ID,
     schema_version:1,
-    test_version:'v2.4',
+    test_version:'v2.5',
     started_at:startedAt,
     completed_at:completedAt,
     duration_ms:Math.max(0,Date.now()-new Date(startedAt).getTime()),
