@@ -47,7 +47,7 @@ function prepareAdaptive(){
   const dif=T.map((t,j)=>[j,Math.abs(CZ[ia][j]-CZ[ib][j])]).sort((a,b)=>b[1]-a[1]).slice(0,2);
   extra=dif.map(([j])=>G[T[j]]);extraMode='generic';extraKey=dif.map(x=>x[0]);return true
 }
-function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.7</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div>${instagramShareHint()}</div></div>`}
+function start(){app.innerHTML=`<div class="card hero-card"><div class="hero-content"><div class="small">THE GENIUS CHARACTER TEST · v2.8</div><h1>나는 더 지니어스에서 누구일까?</h1><p class="muted">12개의 게임 상황에서 당신이라면 어떻게 플레이할지 선택하세요. 결과가 비슷할 때만 판별 질문 2개가 추가됩니다.</p><div class="notice small">결과는 지능·인성 평가가 아니라 방송 속 의사결정 패턴과의 유사도를 비교합니다.</div><button class="primary hero-start" onclick="beginTest()">테스트 시작</button><div class="small hero-note">AI로 제작한 팬 테스트 비주얼을 사용합니다.</div><div class="small privacy-note">테스트 개선을 위해 개인을 식별하지 않는 익명 응답 통계를 저장합니다.</div>${instagramShareHint()}</div></div>`}
 function beginTest(){if(!TEST_STARTED_AT)TEST_STARTED_AT=new Date().toISOString();showQ()}
 function currentQ(){return idx<Q.length?Q[idx]:extra[idx-Q.length]}
 function currentSavedAnswer(){
@@ -251,11 +251,10 @@ function showStoryPreview(blob){
         <button class="share-close" type="button" onclick="revokeStoryPreview()">닫기</button>
       </div>
       <div class="story-preview-frame"><img src="${url}" alt="더 지니어스 테스트 스토리용 결과 카드"></div>
-      <div class="story-preview-actions">
-        <button class="primary" type="button" onclick="saveStoryImage()">이미지 저장</button>
-        <button type="button" onclick="shareStoryImage(true)">공유 앱 열기</button>
+      <div class="story-preview-actions story-preview-actions-single">
+        <button class="primary" type="button" onclick="saveResultImage()">이미지 저장</button>
       </div>
-      <p class="small story-help">${isInstagramInApp()?'Instagram 앱 안에서는 공유 API가 제한될 수 있습니다. 이미지가 저장되지 않으면 카드를 길게 눌러 저장하거나 우측 상단 메뉴에서 외부 브라우저로 연 뒤 다시 시도하세요.':'Instagram 스토리에서는 이 이미지를 선택한 뒤 링크 스티커에 테스트 주소를 붙이면 됩니다.'}</p>
+      <p class="small story-help">${isInstagramInApp()?'Instagram 앱 안에서는 이미지 파일 공유가 제한될 수 있습니다. 이미지를 저장해 스토리에 올린 뒤 복사된 테스트 링크를 링크 스티커에 붙이세요.':'이 이미지를 Instagram·카카오톡 등에 올릴 수 있습니다. Instagram 스토리에서는 테스트 링크를 링크 스티커에 붙이면 됩니다.'}</p>
     </div>`;
   overlay.addEventListener('click',e=>{if(e.target===overlay)revokeStoryPreview()});
   document.body.appendChild(overlay);
@@ -311,6 +310,92 @@ async function shareStoryImage(fromPreview=false){
 async function makeStoryImage(){
   await shareStoryImage(false);
 }
+async function copyShareUrlSilently(){
+  if(!CURRENT_SHARE)return false;
+  try{
+    if(navigator.clipboard&&window.isSecureContext){
+      await navigator.clipboard.writeText(CURRENT_SHARE.url);
+      return true;
+    }
+  }catch(e){}
+  return false;
+}
+async function shareResultImage(){
+  if(!CURRENT_STORY||!CURRENT_SHARE)return;
+  setShareBusy(true);
+  try{
+    const blob=await createStoryBlob();
+    const file=new File([blob],storyFileName(),{type:'image/png'});
+    const payload={
+      title:`내 더 지니어스 결과: ${CURRENT_STORY.name}`,
+      text:shareText(true),
+      files:[file]
+    };
+
+    if(typeof navigator.share==='function'){
+      let canShareFiles=true;
+      if(typeof navigator.canShare==='function'){
+        try{canShareFiles=navigator.canShare({files:[file]})}catch(e){canShareFiles=false}
+      }
+      if(canShareFiles){
+        try{
+          await navigator.share(payload);
+          analyticsEvent('share_native',{method:'result_image_with_link'});
+          setShareStatus('이미지와 테스트 링크를 공유했습니다.','ok');
+          return;
+        }catch(err){
+          if(err&&err.name==='AbortError'){
+            setShareStatus('공유를 취소했습니다.','muted');
+            return;
+          }
+          console.warn('Result image share failed',err);
+        }
+      }
+    }
+
+    const copied=await copyShareUrlSilently();
+    showStoryPreview(blob);
+    analyticsEvent('share_native',{method:'result_image_preview_fallback'});
+    setShareStatus(
+      copied
+        ? '이 브라우저는 이미지 직접 공유를 제한합니다. 이미지를 저장해 공유하세요. 테스트 링크는 복사했습니다.'
+        : '이 브라우저는 이미지 직접 공유를 제한합니다. 이미지를 저장해 공유하세요.',
+      'muted'
+    );
+  }catch(err){
+    console.warn('Result image generation failed',err);
+    setShareStatus('공유 이미지를 만들지 못했습니다. 다시 시도해 주세요.','error');
+  }finally{
+    setShareBusy(false);
+  }
+}
+async function saveResultImage(){
+  if(!CURRENT_STORY)return;
+  try{
+    const blob=await createStoryBlob();
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;
+    link.download=storyFileName();
+    link.style.display='none';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),5000);
+    analyticsEvent('share_native',{method:'result_image_save'});
+    setShareStatus('결과 이미지를 저장했습니다.','ok');
+  }catch(err){
+    console.warn('Result image save failed',err);
+    try{
+      const blob=await createStoryBlob();
+      showStoryPreview(blob);
+      setShareStatus('자동 저장이 제한되어 이미지를 열었습니다. 이미지를 길게 눌러 저장해 주세요.','muted');
+    }catch(e){
+      setShareStatus('이미지 저장에 실패했습니다. 다시 시도해 주세요.','error');
+    }
+  }
+}
+
 function isInstagramInApp(){
   return /Instagram/i.test(navigator.userAgent||'');
 }
@@ -331,7 +416,7 @@ function setShareBusy(busy){
   const btn=document.getElementById('share-primary-btn');
   if(!btn)return;
   btn.disabled=busy;
-  btn.textContent=busy?'공유창 여는 중…':'결과 공유하기';
+  btn.textContent=busy?'이미지 만드는 중…':'공유하기';
 }
 function closeShareSheet(){
   document.getElementById('share-sheet')?.remove();
@@ -535,7 +620,7 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   analyticsSaveRun({
     id:ANALYTICS_RUN_ID,
     schema_version:1,
-    test_version:'v2.7',
+    test_version:'v2.8',
     started_at:startedAt,
     completed_at:completedAt,
     duration_ms:Math.max(0,Date.now()-new Date(startedAt).getTime()),
@@ -570,9 +655,8 @@ function result(){const s=scores(),top=s[0],similar=s[1],last=s[s.length-1],gap=
   <h2 class="section-title">내 플레이의 핵심 특징</h2>
   <div class="grid">${dominant.map(([t,v])=>traitCard(t,v)).join('')}</div>
   <div class="share-panel">
-    <button id="share-primary-btn" class="primary share-primary" onclick="shareCurrentResult()">결과 공유하기</button>
-    <button class="share-secondary story-direct-btn" onclick="makeStoryImage()">스토리 이미지 만들기</button>
-    <button class="share-secondary share-copy-direct" onclick="copyResultLink()">결과 + 링크 복사</button>
+    <button id="share-primary-btn" class="primary share-primary" onclick="shareResultImage()">공유하기</button>
+    <button class="share-secondary story-direct-btn" onclick="saveResultImage()">이미지 저장</button>
     <div id="share-status" class="share-status small" aria-live="polite" hidden></div>
   </div>
 </div>
