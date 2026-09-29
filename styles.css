@@ -6,11 +6,11 @@
 .hero-card .notice{color:#d5d8de;border-left-color:#b79662}
 .hero-start{margin-top:20px;background:#f1e4cf;border-color:#c7a36b}
 .hero-note{margin-top:12px;color:#bfc3ca}
-.player-photo{display:block;object-fit:cover;object-position:center;background:#111;border:1px solid #4a4237;border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.25);flex:0 0 auto}
-.player-photo-lg{width:210px;height:210px}
-.player-photo-md{width:132px;height:132px}
-.player-photo-sm{width:62px;height:62px;border-radius:10px}
-.result-top{display:grid;grid-template-columns:210px 1fr;gap:24px;align-items:start}
+.player-photo{display:block;object-fit:cover;object-position:center;background:#111;border:1px solid #4a4237;border-radius:14px;box-shadow:0 6px 22px rgba(0,0,0,.24);flex:0 0 auto;max-width:100%;height:auto;aspect-ratio:1/1}
+.player-photo-lg{width:140px;height:140px}
+.player-photo-md{width:96px;height:96px}
+.player-photo-sm{width:52px;height:52px;border-radius:10px}
+.result-top{display:grid;grid-template-columns:140px 1fr;gap:22px;align-items:start}
 .result-copy{min-width:0}
 .rank-player{align-items:center}
 .rank-copy{flex:1;min-width:0}
@@ -20,6 +20,8 @@
   .hero-card{min-height:500px}
   .hero-card h1{font-size:32px}
   .result-top{grid-template-columns:1fr}
-  .player-photo-lg{width:min(68vw,240px);height:min(68vw,240px);margin:0 auto}
+  .player-photo-lg{width:140px;height:140px;margin:0 auto}
+  .player-photo-md{width:88px;height:88px}
+  .player-photo-sm{width:48px;height:48px}
   .opposite-row{align-items:flex-start}
 }
