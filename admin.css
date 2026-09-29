@@ -11,3 +11,15 @@ button,a{font:inherit}.admin-wrap{max-width:1240px;margin:auto;padding:30px 24px
 .pair-table{width:100%;border-collapse:collapse}.pair-table td{padding:10px 0;border-bottom:1px solid #292d34;font-size:13px}.pair-table td:last-child{text-align:right;font-weight:800}.version-list{display:grid;gap:9px}.version-row{display:flex;justify-content:space-between;padding:11px 12px;background:#181a1e;border:1px solid #292d34;border-radius:10px}.empty{padding:24px 10px;color:#7f8791;text-align:center;font-size:13px}footer{color:#686f78;font-size:11px;line-height:1.6;text-align:center;padding:22px 0}
 @media(max-width:900px){.kpi-grid{grid-template-columns:repeat(2,1fr)}.signal-grid{grid-template-columns:repeat(2,1fr)}.question-grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}.two-col>.panel{margin:0}}
 @media(max-width:620px){.admin-wrap{padding:20px 14px 40px}.admin-header{display:block}.admin-header h1{font-size:31px}.header-actions{justify-content:flex-start;margin-top:16px}.kpi-grid{grid-template-columns:1fr 1fr;gap:8px}.kpi{padding:13px}.kpi-value{font-size:25px}.panel{padding:16px}.signal-grid{grid-template-columns:1fr}.bar-row{grid-template-columns:105px 1fr 58px}.bar-person img{display:none}.question-card{padding:13px}}
+
+.login-gate{min-height:55vh;display:grid;place-items:center;padding:40px 0}
+.login-gate[hidden],.dashboard-content[hidden]{display:none!important}
+.login-card{width:min(100%,520px);background:linear-gradient(180deg,#191b20,#121419);border:1px solid #423927;border-radius:18px;padding:24px;box-shadow:0 24px 80px rgba(0,0,0,.28)}
+.login-card h2{margin:7px 0 8px;font-size:24px}
+.login-card p{margin:0 0 18px;color:var(--muted);line-height:1.6;font-size:13px}
+.login-row{display:grid;grid-template-columns:1fr auto;gap:9px}
+.login-row input{width:100%;border:1px solid #353a42;border-radius:10px;background:#0f1114;color:#f5f1e9;padding:12px 13px;outline:none}
+.login-row input:focus{border-color:#8c6d3f;box-shadow:0 0 0 3px rgba(140,109,63,.14)}
+.login-row button{border:1px solid #8c6d3f;border-radius:10px;background:#e5cfaa;color:#18130d;font-weight:800;padding:0 16px;cursor:pointer}
+.login-error{min-height:20px;margin-top:10px;color:#d9958e;font-size:12px}
+@media(max-width:620px){.login-row{grid-template-columns:1fr}.login-row button{padding:12px 14px}}

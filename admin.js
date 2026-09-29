@@ -1,7 +1,7 @@
 const DASHBOARD={
-  url:'https://qkiqlpmaaijnpaatjzsm.supabase.co',
-  key:'sb_publishable_k96WC0-z5AOkYrHbLuukFg_HOJ9lPfn',
-  refreshMs:60000
+  endpoint:'https://qkiqlpmaaijnpaatjzsm.supabase.co/functions/v1/genius-admin-analytics',
+  refreshMs:60000,
+  sessionKey:'genius_admin_token'
 };
 const QUESTIONS=[...(window.Q1||[]),...(window.Q2||[])];
 const PLAYER_IMG={
@@ -18,16 +18,13 @@ const pct=n=>`${Number(n||0).toFixed(1)}%`;
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function setStatus(msg,type=''){const el=$('status');el.textContent=msg;el.className='status '+type}
 async function fetchAnalytics(){
-  const res=await fetch(`${DASHBOARD.url}/rest/v1/rpc/get_dashboard_analytics`,{
-    method:'POST',
-    headers:{
-      apikey:DASHBOARD.key,
-      Authorization:`Bearer ${DASHBOARD.key}`,
-      'Content-Type':'application/json'
-    },
-    body:'{}',
+  const token=sessionStorage.getItem(DASHBOARD.sessionKey)||'';
+  const res=await fetch(DASHBOARD.endpoint,{
+    method:'GET',
+    headers:{'x-admin-token':token},
     cache:'no-store'
   });
+  if(res.status===401)throw new Error('UNAUTHORIZED');
   if(!res.ok)throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -119,12 +116,52 @@ function render(data){
   if(Number(data.summary?.total_tests||0)===0)setStatus('아직 저장된 완료 결과가 없습니다. 테스트가 완료되면 자동으로 반영됩니다.','ok');
   else setStatus(`정상 연결 · 익명 완료 결과 ${fmt(data.summary.total_tests)}건 집계 중`,'ok');
 }
+function showLogin(message=''){
+  $('loginGate').hidden=false;
+  $('dashboardContent').hidden=true;
+  $('refreshBtn').hidden=true;
+  $('logoutBtn').hidden=true;
+  $('updatedAt').textContent='로그인 필요';
+  $('loginError').textContent=message;
+}
+function showDashboard(){
+  $('loginGate').hidden=true;
+  $('dashboardContent').hidden=false;
+  $('refreshBtn').hidden=false;
+  $('logoutBtn').hidden=false;
+}
 async function load(){
   $('refreshBtn').disabled=true;
-  try{render(await fetchAnalytics())}
-  catch(err){console.error(err);setStatus('집계 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.','error')}
-  finally{$('refreshBtn').disabled=false}
+  try{
+    const data=await fetchAnalytics();
+    showDashboard();
+    render(data);
+  }catch(err){
+    console.error(err);
+    if(String(err.message)==='UNAUTHORIZED'){
+      sessionStorage.removeItem(DASHBOARD.sessionKey);
+      showLogin('관리자 토큰이 올바르지 않습니다.');
+    }else{
+      if(!$('dashboardContent').hidden)setStatus('집계 데이터를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.','error');
+      else showLogin('집계 API에 연결하지 못했습니다.');
+    }
+  }finally{$('refreshBtn').disabled=false}
 }
+async function login(){
+  const token=$('adminToken').value.trim();
+  if(!token){$('loginError').textContent='관리자 토큰을 입력하세요.';return}
+  sessionStorage.setItem(DASHBOARD.sessionKey,token);
+  $('loginError').textContent='확인 중…';
+  await load();
+  if(!$('dashboardContent').hidden)$('adminToken').value='';
+}
+function logout(){
+  sessionStorage.removeItem(DASHBOARD.sessionKey);
+  showLogin('');
+}
+$('loginBtn').addEventListener('click',login);
+$('adminToken').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('refreshBtn').addEventListener('click',load);
-load();
-setInterval(load,DASHBOARD.refreshMs);
+$('logoutBtn').addEventListener('click',logout);
+if(sessionStorage.getItem(DASHBOARD.sessionKey)) load(); else showLogin('');
+setInterval(()=>{if(sessionStorage.getItem(DASHBOARD.sessionKey))load()},DASHBOARD.refreshMs);
